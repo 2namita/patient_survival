@@ -4,7 +4,44 @@ import joblib
 
 # Load the trained XGBoost model
 model = joblib.load('xgboost-model.pkl')  # make sure the model file is present
+################################# Prometheus related code START ######################################################
+import prometheus_client as prom
+from prom import start_http_server, Counter
+import pandas as pd
+from sklearn.metrics import r2_score
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+from typing import Any
 
+from app.api import api_router
+from app.config import settings
+
+curr_path = str(Path(__file__).parent)
+
+# Metric object of type gauge
+requests_total = Counter("gradio_requests_total", "Total requests to the Gradio app")
+
+
+def greet(name):
+    requests_total.inc()  # increment on each call
+    return f"Hello {name}"
+
+# LOAD TEST DATA
+test_data = pd.read_csv(curr_path + "/heart_failure_clinical_records_dataset.csv")
+
+
+# Function for updating metrics
+def update_metrics():
+    test = test_data.sample(100)
+    test_feat = test.drop('DEATH_EVENT', axis=1)
+    test_cnt = test['DEATH_EVENT'].values
+    for i in range (99):
+      test_pred = model.predict(input_data=test_feat)[x]
+   
+    
+
+################################# Prometheus related code END ######################################################
 # Define the prediction function
 def predict_survival(age, anaemia, creatinine_phosphokinase, diabetes,
                      ejection_fraction, high_blood_pressure, platelets,
@@ -26,7 +63,7 @@ def predict_survival(age, anaemia, creatinine_phosphokinase, diabetes,
     })
 
     prediction = model.predict(input_data)[0]
-
+    requests_total.inc() #incrementing request metric
     if prediction == 1:
         return "⚠️ Patient did not survive during follow-up."
     else:
@@ -54,5 +91,9 @@ interface = gr.Interface(
     description="Provide patient's clinical data to predict survival after heart failure."
 )
 
+
+
+
 if __name__ == "__main__":
+    start_http_server(7860)  # Expose metrics at http://localhost:7860/metrics
     interface.launch(server_name="0.0.0.0", server_port=7860)
