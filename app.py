@@ -6,7 +6,7 @@ import joblib
 model = joblib.load('xgboost-model.pkl')  # make sure the model file is present
 ################################# Prometheus related code START ######################################################
 import prometheus_client as prom
-from prom import start_http_server, Counter
+from prometheus_client import start_http_server, Counter
 import pandas as pd
 from sklearn.metrics import r2_score
 import sys
@@ -14,30 +14,30 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 from typing import Any
 
-from app.api import api_router
-from app.config import settings
-
 curr_path = str(Path(__file__).parent)
 
 # Metric object of type gauge
 requests_total = Counter("gradio_requests_total", "Total requests to the Gradio app")
 
 
-def greet(name):
-    requests_total.inc()  # increment on each call
-    return f"Hello {name}"
-
 # LOAD TEST DATA
-test_data = pd.read_csv(curr_path + "/heart_failure_clinical_records_dataset.csv")
+csv_path = curr_path + "/heart_failure_clinical_records_dataset.csv"
+
+test_data = pd.read_csv(csv_path)
+
+
+def row_generator(csv_path):
+    for chunk in pd.read_csv(csv_path, chunksize=1):
+        yield chunk  # Each chunk is a 1-row DataFrame
+
+# Example usage:
 
 
 # Function for updating metrics
 def update_metrics():
-    test = test_data.sample(100)
-    test_feat = test.drop('DEATH_EVENT', axis=1)
-    test_cnt = test['DEATH_EVENT'].values
-    for i in range (99):
-      test_pred = model.predict(input_data=test_feat)[x]
+    for row_df in row_generator(csv_path):
+       test_feat = row_df.drop('DEATH_EVENT', axis=1)
+       model.predict(test_feat)
    
     
 
@@ -64,6 +64,9 @@ def predict_survival(age, anaemia, creatinine_phosphokinase, diabetes,
 
     prediction = model.predict(input_data)[0]
     requests_total.inc() #incrementing request metric
+    ############ Calling for loop to create metrics ####################
+    update_metrics()
+    ####################################################################
     if prediction == 1:
         return "⚠️ Patient did not survive during follow-up."
     else:
@@ -73,18 +76,18 @@ def predict_survival(age, anaemia, creatinine_phosphokinase, diabetes,
 interface = gr.Interface(
     fn=predict_survival,
     inputs=[
-        gr.Slider(30, 100, step=1, label="Age (years)"),
-        gr.Radio([0, 1], label="Anaemia (0: No, 1: Yes)"),
-        gr.Slider(20, 8000, step=10, label="Creatinine Phosphokinase (mcg/L)"),
-        gr.Radio([0, 1], label="Diabetes (0: No, 1: Yes)"),
-        gr.Slider(10, 80, step=1, label="Ejection Fraction (%)"),
-        gr.Radio([0, 1], label="High Blood Pressure (0: No, 1: Yes)"),
-        gr.Slider(50000, 850000, step=1000, label="Platelets (kiloplatelets/mL)"),
-        gr.Slider(0.5, 10.0, step=0.1, label="Serum Creatinine (mg/dL)"),
-        gr.Slider(110, 150, step=1, label="Serum Sodium (mEq/L)"),
-        gr.Radio([0, 1], label="Sex (0: Female, 1: Male)"),
-        gr.Radio([0, 1], label="Smoking (0: No, 1: Yes)"),
-        gr.Slider(1, 300, step=1, label="Follow-up Time (days)")
+        gr.Slider(30, 100, step=1, label="Age (years)", value=50),
+        gr.Radio([0, 1], label="Anaemia (0: No, 1: Yes)", value=1),
+        gr.Slider(20, 8000, step=10, label="Creatinine Phosphokinase (mcg/L)", value=4500),
+        gr.Radio([0, 1], label="Diabetes (0: No, 1: Yes)", value=1),
+        gr.Slider(10, 80, step=1, label="Ejection Fraction (%)", value=55),
+        gr.Radio([0, 1], label="High Blood Pressure (0: No, 1: Yes)", value=1),
+        gr.Slider(50000, 850000, step=1000, label="Platelets (kiloplatelets/mL)", value=60000),
+        gr.Slider(0.5, 10.0, step=0.1, label="Serum Creatinine (mg/dL)", value=5.3),
+        gr.Slider(110, 150, step=1, label="Serum Sodium (mEq/L)", value=120),
+        gr.Radio([0, 1], label="Sex (0: Female, 1: Male)", value=1),
+        gr.Radio([0, 1], label="Smoking (0: No, 1: Yes)", value=0),
+        gr.Slider(1, 300, step=1, label="Follow-up Time (days)", value=200)
     ],
     outputs="text",
     title="💓 Heart Failure Survival Prediction App",
@@ -95,5 +98,5 @@ interface = gr.Interface(
 
 
 if __name__ == "__main__":
-    start_http_server(7860)  # Expose metrics at http://localhost:7860/metrics
+    start_http_server(8001)  # Expose metrics at http://localhost:8001/metrics
     interface.launch(server_name="0.0.0.0", server_port=7860)

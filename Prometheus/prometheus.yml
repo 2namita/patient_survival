@@ -10,9 +10,9 @@ scrape_configs:
   # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config. - 
   - job_name: "prometheus"
 
-    metrics_path: '/metrics'
-    scheme: 'https' 
+    #metrics_path: '/metrics'
+    #scheme: 'https' 
     scrape_interval: 10s # override default value 
     scrape_timeout: 10s # override default value 
     static_configs: 
-      - targets: ["sturdy-capybara-4jv79g49xw97h76j6-9090.app.github.dev"] # The target here it's Prometheus itself.
+      - targets: ["crispy-computing-machine-695g7r67j76xfg99-8001.app.github.dev"] # The target here it's Prometheus itself.
